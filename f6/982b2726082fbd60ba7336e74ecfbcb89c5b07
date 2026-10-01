@@ -1,0 +1,29 @@
+docs/playport-logo.svg
+  s_487b655c006206::t_c90465d462f56a 1,7-11
+README.md
+  s_05732cea219e44::t_6524c3a724887e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6982b2726082fbd60ba7336e74ecfbcb89c5b07",
+  "prompts": {},
+  "sessions": {
+    "s_05732cea219e44": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f2d8-9d97-7f42-b403-d76b5d91f822",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Youcef <tools@youcef.de>"
+    },
+    "s_487b655c006206": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e778c8dffed6ZNeUdA3T11wn",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "Youcef <tools@youcef.de>"
+    }
+  }
+}
