@@ -1,0 +1,19 @@
+docs/playport-logo.svg
+  s_487b655c006206::t_4c279b34984c38 1,7-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c87860fae0e940973a435618ee93cda412e10561",
+  "prompts": {},
+  "sessions": {
+    "s_487b655c006206": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e778c8dffed6ZNeUdA3T11wn",
+        "model": "deepseek/deepseek-v4.1-flash"
+      },
+      "human_author": "Youcef <tools@youcef.de>"
+    }
+  }
+}
