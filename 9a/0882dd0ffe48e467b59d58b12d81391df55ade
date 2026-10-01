@@ -1,0 +1,19 @@
+README.md
+  s_ef2801df211315::t_17609ed0c9b03c 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9a0882dd0ffe48e467b59d58b12d81391df55ade",
+  "prompts": {},
+  "sessions": {
+    "s_ef2801df211315": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f6c8-0375-7250-8506-ec9aeb8e969d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Youcef <tools@youcef.de>"
+    }
+  }
+}
