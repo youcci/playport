@@ -1,0 +1,19 @@
+gradlew
+  s_7cacf303acf6ee::t_acd53227b7dd6b 1-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "25fec953e7ec3027803500423571efd892e15bc2",
+  "prompts": {},
+  "sessions": {
+    "s_7cacf303acf6ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ef09-0022-7ed3-bdec-88191a4590a4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Youcef <tools@youcef.de>"
+    }
+  }
+}
