@@ -6,15 +6,15 @@
 A server-side CarPlay receiver that turns any screen on your network into a head unit.
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](#requirements)
+[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#requirements)
 [![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#status-and-limitations)
-[![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen.svg)](#development)
 
 </div>
 
 ![PlayPort live CarPlay viewer](docs/screenshots/dashboard.jpg)
 
-PlayPort runs the **car** side of CarPlay on a Mac. Your iPhone connects wirelessly (Bluetooth
+PlayPort runs the **car** side of CarPlay on a Mac or Linux PC. Your iPhone connects wirelessly (Bluetooth
 bootstrap, then Wi-Fi), and every browser on the network can watch and control CarPlay — touch,
 rotary knob, media keys, Siri and phone calls. No dongle, no head unit, no app install: open a
 URL and drive.
@@ -112,12 +112,12 @@ the browser** (no server-side decoding or re-encoding), and the browser decodes 
 
 | Component | Requirement |
 |---|---|
-| Server | macOS 13+ (developed and tested on macOS 27, Apple silicon) |
-| Java | JDK 21 (`brew install openjdk@21`) |
-| Build tools | Xcode Command Line Tools (`xcode-select --install`) for the Bluetooth bridge |
+| Server | macOS 13+ (developed and tested on macOS 27, Apple silicon), or Linux with BlueZ (tested on Omarchy/Arch) |
+| Java | JDK 21 (`brew install openjdk@21`, or your distribution's package) |
+| Build tools | Xcode Command Line Tools (`xcode-select --install`) for the Bluetooth bridge on macOS; on Linux, `cargo`, `pkg-config` and the D-Bus development headers (Arch: `rust pkgconf dbus`) |
 | Web client | Node.js 20+ (only needed to build `web/dist`) |
 | iPhone | Any CarPlay-capable iPhone with Bluetooth and Wi-Fi |
-| Network | iPhone and Mac on the same Wi-Fi network; Bluetooth enabled on both |
+| Network | iPhone and host on the same network; Bluetooth enabled on both |
 
 ## Quick start
 
@@ -130,24 +130,35 @@ mkdir -p identity/offline-mfi
 cp /path/to/identity.pk8 /path/to/certificate.p7b identity/offline-mfi/
 
 # 2. Build everything
-./gradlew build                      # protocol + server, runs 96 tests
+./gradlew build                      # protocol + server, runs 98 tests
 (cd web && npm install && npm run build)
 
-# 3. Build the Bluetooth bridge (macOS RFCOMM helper)
-macos/bt-bridge/build.sh
+# 3. Build the Bluetooth bridge
+macos/bt-bridge/build.sh             # macOS
+linux/bt-bridge/build.sh             # Linux
 
 # 4. Pair the iPhone once (keep Settings > Bluetooth open on the phone)
-macos/bt-bridge/bt-bridge --scan
-macos/bt-bridge/bt-bridge --pair AA:BB:CC:DD:EE:FF      # confirm the code on the iPhone
+BRIDGE=macos/bt-bridge/bt-bridge     # on Linux: BRIDGE=linux/bt-bridge/bt-bridge
+$BRIDGE --scan
+$BRIDGE --pair AA:BB:CC:DD:EE:FF     # confirm the code on the iPhone
 
-# 5. Prepare macOS
+# 5. Prepare the host
+#    macOS:
 #    · System Settings → General → AirDrop & Handoff → turn OFF "AirPlay Receiver"
 #    · System Settings → Privacy & Security → Bluetooth → enable your terminal app
 #    · Allow incoming connections for java if the firewall asks
+#    Linux:
+#    · Allow the iPhone through your firewall; it connects in on port 7000 and on random
+#      media ports. With ufw: sudo ufw allow from <iphone-ip>
+#      (undo it with: sudo ufw delete allow from <iphone-ip>)
 
 # 6. Run the server (use the Wi-Fi name the iPhone is on)
 ./gradlew :server:run --args="--wireless --wifi-ssid \"YOUR_WIFI\" --wifi-passphrase \"YOUR_PASSWORD\""
 ```
+
+On Linux, always pass `--wifi-ssid` and `--wifi-passphrase`, because the network isn't detected
+automatically. If the machine is on Ethernet, also pass `--bind <lan-ip>`. The iPhone's Wi-Fi must
+reach that subnet, including multicast.
 
 Open the **https://** URL the server prints (it contains an access token) and accept the
 self-signed certificate warning once. HTTPS is required because browsers only expose WebCodecs —
@@ -271,10 +282,10 @@ Every option can be given as a CLI flag; UI changes are saved to `~/.playport/co
 | `--state-dir <path>` | Identity, pairings, TLS, config | `~/.playport` |
 | `--mfi-server`, `--mfi-token` | Remote MFi service instead of local keys | — |
 | `--wireless` | Enable the Bluetooth/Wi-Fi bootstrap | off |
-| `--wifi-ssid`, `--wifi-passphrase`, `--wifi-channel`, `--wifi-security` | Network handed to the phone | auto-detect SSID |
+| `--wifi-ssid`, `--wifi-passphrase`, `--wifi-channel`, `--wifi-security` | Network handed to the phone (auto-detection is macOS only) | auto-detect SSID |
 | `--bt-address <mac>` | iPhone Bluetooth address | auto-discovered |
-| `--bt-bridge <path>` | Bluetooth helper binary | `macos/bt-bridge/bt-bridge` |
-| `--mdns <backend>` | `auto`, `dns-sd` or `jmdns` | `auto` (dns-sd on macOS) |
+| `--bt-bridge <path>` | Bluetooth helper binary | `macos/bt-bridge/bt-bridge` or `linux/bt-bridge/bt-bridge` |
+| `--mdns <backend>` | `auto`, `dns-sd` or `jmdns` | `auto` (`dns-sd` on macOS, JmDNS elsewhere) |
 | `--http` | Serve plain HTTP (WebCodecs then only works on localhost) | off |
 | `--token <token>` | Fixed browser access token | random per start |
 
@@ -282,14 +293,18 @@ Every option can be given as a CLI flag; UI changes are saved to `~/.playport/co
 
 | Symptom | Cause and fix |
 |---|---|
-| `bt-bridge` aborts immediately (`SIGABRT`) | macOS Bluetooth privacy. System Settings → Privacy & Security → Bluetooth → enable your terminal app. |
-| iPhone never appears in Bluetooth settings | Expected — macOS hides iPhones. Pair with `macos/bt-bridge/bt-bridge --pair <address>` (with Settings → Bluetooth open on the phone). |
+| macOS: `bt-bridge` aborts immediately (`SIGABRT`) | macOS Bluetooth privacy. System Settings → Privacy & Security → Bluetooth → enable your terminal app. |
+| macOS: iPhone never appears in Bluetooth settings | Expected — macOS hides iPhones. Pair with `macos/bt-bridge/bt-bridge --pair <address>` (with Settings → Bluetooth open on the phone). |
 | `--pair` hangs | The device is already paired; just start the server, or use `--force-pair` to re-bond. |
-| `no Wi-Fi network detected` | macOS hides the SSID from processes without Location Services, or the Wi-Fi is on another interface. Pass `--wifi-ssid` and `--wifi-passphrase`, or grant Location Services to your terminal. |
+| `no Wi-Fi network detected` | macOS hides the SSID from processes without Location Services, or the Wi-Fi is on another interface. Pass `--wifi-ssid` and `--wifi-passphrase`, or grant Location Services to your terminal. On Linux the network is never detected, so always pass both flags. |
+| `adapter is powered off` | The Bluetooth adapter is off. Run `bluetoothctl power on`. |
+| Linux: `--pair` fails or times out | Forget this computer on the iPhone, keep Settings → Bluetooth open, and retry with `--force-pair`. |
+| Linux: no CarPlay prompt, or no video after the Bluetooth step | The firewall is blocking the iPhone. Allow it through, as in Quick start step 5. |
+| Wrong address in the printed URL | The server picked another interface. Pass `--bind <lan-ip>`. |
 | Phone connects but video is black | Open the **https://** URL (WebCodecs needs a secure context) and hard-refresh. Press **Fix video** to force a keyframe. |
 | `H.265/HEVC … cannot decode` | Your browser lacks HEVC. Switch the codec back to H.264 in the Display panel. |
 | No CarPlay prompt on the iPhone | Check the phone joined the same Wi-Fi. Remove stale entries in iPhone Settings → General → CarPlay, then let the supervisor retry (or restart the server). |
-| Port 7000 already in use | macOS AirPlay Receiver is on. System Settings → General → AirDrop & Handoff → turn it off. |
+| macOS: port 7000 already in use | macOS AirPlay Receiver is on. System Settings → General → AirDrop & Handoff → turn it off. |
 | Browser warns about the certificate | Expected: the server generates a self-signed certificate in `~/.playport`. Accept it once. |
 | Stream resolution lower than requested | The iPhone clamps to what its encoder supports; the header HUD shows what actually arrived. |
 
@@ -311,6 +326,7 @@ protocol/   Kotlin/JVM library ported from DiPlay's shared module (AirPlay, iAP2
 server/     Ktor server: RTSP + mDNS + Bluetooth bridge + WebSocket hub + display/mic/config APIs
 web/        Vite + TypeScript browser client (WebCodecs video/audio, input, panels)
 macos/      bt-bridge: Swift IOBluetooth RFCOMM helper for the wireless bootstrap
+linux/      bt-bridge: Rust BlueZ RFCOMM helper for the wireless bootstrap
 identity/   Accessory identity drop-in (gitignored — see above)
 docs/       Logo and screenshots
 ```
@@ -318,9 +334,10 @@ docs/       Logo and screenshots
 ## Development
 
 ```sh
-./gradlew build          # compiles both modules and runs the test suite (96 tests)
+./gradlew build          # compiles both modules and runs the test suite (98 tests)
 (cd web && npm run build)  # type-checks and bundles the browser client
 (cd web && npm test)       # checks keyboard isolation and touch mapping
+(cd linux/bt-bridge && cargo test)   # tests the Linux helper
 ./gradlew :server:run --args="--help"
 ```
 
@@ -337,7 +354,7 @@ persistence. Tested with H.264; HEVC passthrough is implemented but depends on y
 
 - Not an Apple-certified product; the public identity is shared and can be revoked by Apple.
 - Wired USB CarPlay is not supported; wireless only.
-- Linux is not supported yet (the server and mDNS are portable; the Bluetooth bridge is macOS-only).
+- Linux support uses `linux/bt-bridge` and BlueZ, and has only been tested on Omarchy/Arch.
 - Telephony buttons are implemented but their HID indexes are unverified in DiPlay — report if
   **Call** does nothing during a call.
 - H.265/HEVC requires a browser with HEVC WebCodecs support (Chrome/Edge on macOS, Safari 17+).
