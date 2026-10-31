@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory
  * Wireless CarPlay bring-up: Bluetooth RFCOMM iAP2 bootstrap, Wi-Fi credentials handoff and the
  * tunneled iAP2 handover.
  *
- * Requires the macOS `bt-bridge` helper (macos/bt-bridge) with the iPhone already paired in
- * System Settings, and the server running on the Wi-Fi network the phone should join.
+ * Requires the platform's bt-bridge helper (macos/bt-bridge or linux/bt-bridge) with the iPhone
+ * already paired, and the server on the network the phone's Wi-Fi reaches.
  */
 class WirelessBootstrap(private val server: CarPlayServer) : Closeable {
     private val log = LoggerFactory.getLogger("wireless")
@@ -43,7 +43,7 @@ class WirelessBootstrap(private val server: CarPlayServer) : Closeable {
                     "wireless bootstrap skipped: no Wi-Fi network detected. " +
                         "Pass the Wi-Fi the iPhone should use: " +
                         "--wifi-ssid \"<name>\" --wifi-passphrase \"<password>\" " +
-                        "(macOS hides the SSID from processes without Location Services permission).",
+                        "(automatic detection only works on macOS, which hides the SSID from processes without Location Services permission).",
                 )
                 return
             }
@@ -54,7 +54,7 @@ class WirelessBootstrap(private val server: CarPlayServer) : Closeable {
             if (bridgePath == null) {
                 log.warn(
                     "wireless bootstrap skipped: bt-bridge helper not found; " +
-                        "build it with macos/bt-bridge/build.sh or pass --bt-bridge",
+                        "build it with macos/bt-bridge/build.sh or linux/bt-bridge/build.sh, or pass --bt-bridge",
                 )
                 return
             }
@@ -127,6 +127,7 @@ class WirelessBootstrap(private val server: CarPlayServer) : Closeable {
             configured,
             Path.of("macos/bt-bridge/bt-bridge"),
             Path.of("macos/bt-bridge/.build/bt-bridge"),
+            Path.of("linux/bt-bridge/bt-bridge"),
         )
         return candidates.firstOrNull { Files.isExecutable(it) }
     }
@@ -139,7 +140,7 @@ class WirelessBootstrap(private val server: CarPlayServer) : Closeable {
     }
 }
 
-/** Helpers around the macOS bt-bridge executable. */
+/** Helpers around the platform's bt-bridge executable. */
 object BluetoothBridge {
     private val log = LoggerFactory.getLogger("bt-bridge")
 
