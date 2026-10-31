@@ -6,7 +6,7 @@ use bluer::{Address, Device, Session, Uuid};
 use futures::StreamExt;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::{open_adapter, require_powered};
+use crate::{log, open_adapter, require_powered};
 
 const IAP2: Uuid = Uuid::from_u128(0x00000000_deca_fade_deca_deafdecacafe);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -21,10 +21,6 @@ pub enum DrainEnd<T> {
 pub enum PumpEnd {
     StdinClosed,
     RfcommClosed,
-}
-
-fn log(message: &str) {
-    eprintln!("bt-bridge: {message}");
 }
 
 // Link markers sent before the channel opens are stale by the time it does, so they are dropped.

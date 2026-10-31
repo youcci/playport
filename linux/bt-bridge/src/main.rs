@@ -1,11 +1,15 @@
 // playport Linux Bluetooth bridge. See macos/bt-bridge/main.swift for the commands it mirrors.
 
 mod bridge;
-#[allow(dead_code)] // Task 4 uses the remaining items and removes this.
+mod pairing;
 mod cli;
 
 use bluer::{Adapter, Session};
 use cli::Command;
+
+pub fn log(message: &str) {
+    eprintln!("bt-bridge: {message}");
+}
 
 pub async fn open_adapter() -> Result<(Session, Adapter), String> {
     let unavailable = |e: bluer::Error| {
@@ -52,9 +56,13 @@ async fn run(command: Command) -> Result<(), String> {
         Command::PrintAddress => print_address().await,
         Command::List => list_paired().await,
         Command::Bridge { address } => bridge::run(address).await,
-        Command::Scan | Command::Pair { .. } => {
-            open_adapter().await?;
-            Err("not implemented".into())
+        Command::Scan => {
+            let (_session, adapter) = open_adapter().await?;
+            pairing::scan(&adapter).await
+        }
+        Command::Pair { address, force } => {
+            let (session, adapter) = open_adapter().await?;
+            pairing::pair(&session, &adapter, address, force).await
         }
     }
 }
