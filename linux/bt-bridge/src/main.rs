@@ -1,5 +1,6 @@
 // playport Linux Bluetooth bridge. See macos/bt-bridge/main.swift for the commands it mirrors.
 
+mod bridge;
 #[allow(dead_code)] // Task 4 uses the remaining items and removes this.
 mod cli;
 
@@ -15,7 +16,6 @@ pub async fn open_adapter() -> Result<(Session, Adapter), String> {
     Ok((session, adapter))
 }
 
-#[allow(dead_code)] // Task 3 uses this and removes the allow.
 pub async fn require_powered(adapter: &Adapter) -> Result<(), String> {
     match adapter.is_powered().await {
         Ok(true) => Ok(()),
@@ -51,7 +51,8 @@ async fn run(command: Command) -> Result<(), String> {
     match command {
         Command::PrintAddress => print_address().await,
         Command::List => list_paired().await,
-        Command::Scan | Command::Pair { .. } | Command::Bridge { .. } => {
+        Command::Bridge { address } => bridge::run(address).await,
+        Command::Scan | Command::Pair { .. } => {
             open_adapter().await?;
             Err("not implemented".into())
         }
