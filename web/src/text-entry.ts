@@ -50,8 +50,14 @@ export function textToKeys(text: string): TextKeys {
   for (const char of text.replace(/\r\n?|\n|\t/g, ' ')) {
     const plain = char.normalize('NFD').replace(/\p{M}|\p{Cf}|\p{Cc}/gu, '').toLowerCase();
     const mapped = Array.from(plain, keyFor);
-    if (mapped.every((key) => key !== undefined)) keys.push(...(mapped as number[]));
-    else skipped.add(char);
+    if (mapped.some((key) => key === undefined)) {
+      skipped.add(char);
+      continue;
+    }
+    for (const key of mapped as number[]) {
+      // iOS turns a double space into a period.
+      if (key !== KEY_SPACE || keys[keys.length - 1] !== KEY_SPACE) keys.push(key);
+    }
   }
   return { keys, skipped: Array.from(skipped) };
 }
@@ -151,9 +157,10 @@ export class TextEntry {
     const parts: string[] = [];
     if (cut) parts.push(`Only the first ${MAX_PASTE_CHARS.toLocaleString('en-US')} characters were typed.`);
     if (skipped.length > 0) parts.push(`Not typed: ${skipped.join(' ')}`);
-    const { note } = this.elements;
+    const { note, panel } = this.elements;
     note.textContent = parts.join(' ');
     note.hidden = parts.length === 0;
+    if (!note.hidden && panel.hidden) this.open();
   }
 
   private sendKeys(keys: number[]): void {

@@ -95,6 +95,9 @@ assert.deepEqual(keysFor("-=[]\\;'`,./"), [0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x33, 0
 assert.deepEqual(keysFor('a\r\nb\tc\nd\re'), keysFor('a b c d e'), 'Line breaks and tabs become one space, so a paste cannot submit itself');
 assert.deepEqual(textToKeys('a@b!@😀ß'), { keys: [0x04, 0x05], skipped: ['@', '!', '😀', 'ß'] }, 'Anything else is skipped, once each and in order');
 assert.deepEqual(textToKeys('a‍́️b'), { keys: [0x04, 0x05], skipped: [] }, 'Invisible characters are dropped without a report');
+assert.deepEqual(keysFor('a  b'), keysFor('a b'), 'Spaces collapse, because iOS turns a double space into a period');
+assert.deepEqual(keysFor('a\n\nb'), keysFor('a b'));
+assert.deepEqual(keysFor('a @ b'), keysFor('a b'), 'A skipped character must not leave a double space behind');
 
 class FakeElement extends Element {
   constructor(tag) { super(tag); this.handlers = new Map(); this.hidden = true; this.value = ''; this.textContent = ''; this.attributes = new Map(); this.focused = 0; }
@@ -188,6 +191,15 @@ assert.equal(panel.hidden, true, 'The button closes the box too');
 const focusedWhenClosed = screen.focused;
 entry.close();
 assert.equal(screen.focused, focusedWhenClosed, 'Closing a closed box leaves focus alone, so a dropped session cannot pull focus from a panel');
+paste('b');
+assert.deepEqual(sent.pop().keys, keysFor('b'), 'Paste works with the box closed');
+assert.equal(panel.hidden, true, 'A clean paste leaves the box closed');
+paste('a@');
+sent.pop();
+assert.equal(panel.hidden, false, 'A paste that skipped something opens the box, so the note can be seen');
+assert.equal(note.textContent, 'Not typed: @');
+assert.equal(toggle.attributes.get('aria-pressed'), 'true');
+entry.close();
 entry.detach();
 assert.equal(windowHandlers.has('paste'), false);
 console.log('Viewer input check passed: keyboard isolation, native controls, portrait/landscape coordinates, multi-touch, release, text conversion, typing and paste.');
