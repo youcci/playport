@@ -8,7 +8,7 @@ A server-side CarPlay receiver that turns any screen on your network into a head
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#requirements)
 [![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#status-and-limitations)
-[![Tests](https://img.shields.io/badge/tests-112%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-114%20passing-brightgreen.svg)](#development)
 
 </div>
 
@@ -132,7 +132,7 @@ mkdir -p identity/offline-mfi
 cp /path/to/identity.pk8 /path/to/certificate.p7b identity/offline-mfi/
 
 # 2. Build everything
-./gradlew build                      # protocol + server, runs 112 tests
+./gradlew build                      # protocol + server, runs 114 tests
 (cd web && npm install && npm run build)
 
 # 3. Build the Bluetooth bridge
@@ -265,7 +265,7 @@ opens Siri or a call, the browser asks for microphone permission and sends audio
 | Esc / Backspace | Back |
 | Space | Play / pause |
 | S | Siri |
-| Ctrl+V | Types the clipboard into the open CarPlay text field |
+| Ctrl+V / Cmd+V | Types the clipboard into the open CarPlay text field |
 | Viewer controls | Home, Back, Select, Type, media transport, Siri, Call, Mute call, Night, Audio, Display, Refresh video, Focus mode, Fullscreen |
 
 Use **Guide** for connection steps and keyboard shortcuts. **Focus mode** hides the header and
@@ -274,19 +274,26 @@ sidebar while keeping the CarPlay controls within reach.
 ### Typing and paste
 
 Open a text field in CarPlay first, such as a Maps search. Then press **Type** and type in the box
-under the screen: Enter and Backspace reach CarPlay, and Esc closes the box. **Ctrl+V** anywhere in
-the viewer types the clipboard, up to 1,000 characters, at about 2 seconds per 100 characters.
+under the screen: Enter and Backspace reach CarPlay, and Esc closes the box. **Ctrl+V** or **Cmd+V**
+anywhere in the viewer opens the box and types the clipboard, up to 1,000 characters, at about
+2 seconds per 100 characters. Esc stops a paste that is still being typed.
 
 Text arrives simplified, because iOS keeps Shift and Option held after they are released:
 
 - Capitals become lowercase, though the phone may capitalize the start of a sentence itself.
 - Accents are removed, so `São Paulo` is typed as `sao paulo`.
-- Line breaks and tabs become spaces, so a pasted address can't submit itself halfway through.
+- Line breaks, tabs and other kinds of space become one space, so a pasted address can't submit
+  itself halfway through.
 - Characters that need Shift, such as `@`, `!` and `?`, and emoji are not typed. The viewer lists
   what it left out.
 
 This suits searching for places and addresses: `praca da se` finds Praça da Sé. It doesn't suit
 messages or anything where the exact text matters.
+
+Key codes are positions on a US keyboard, so the phone's hardware keyboard layout needs to be U.S.
+Other layouts can type different letters and punctuation, and the viewer can't detect that. Typing
+and paste have only been tested from a desktop Chromium browser on Linux. On-screen keyboards on
+tablets and phones used as viewers are untested, as are Cmd+V and Safari.
 
 ## Configuration
 
@@ -361,7 +368,7 @@ docs/       Logo and screenshots
 ## Development
 
 ```sh
-./gradlew build          # compiles both modules and runs the test suite (112 tests)
+./gradlew build          # compiles both modules and runs the test suite (114 tests)
 (cd web && npm run build)  # type-checks and bundles the browser client
 (cd web && npm test)       # checks keyboard isolation and touch mapping
 (cd linux/bt-bridge && cargo test)   # tests the Linux helper

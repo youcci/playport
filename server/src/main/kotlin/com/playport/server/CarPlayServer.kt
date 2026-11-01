@@ -100,8 +100,8 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
             if (activeSession === session) {
                 activeSession = null
                 bootstrapStale = true
-                typist.clear()
             }
+            typist.clear()
             bridge.endMicrophone()
             hub.setSessionState(false, null)
         }
@@ -211,6 +211,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
                 "telephony" -> message.telephony?.let(session::sendTelephony)
                 "night" -> message.night?.let(session::setNightMode)
                 "keys" -> typist.offer(message.keys)
+                "keysCancel" -> typist.clear()
             }
         } catch (error: Exception) {
             log.warn("Input routing failed type={}: {}", message.type, error.message)

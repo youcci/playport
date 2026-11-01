@@ -109,6 +109,8 @@ h1 { font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -1.3p
 .text-entry input { flex: 1; min-width: 160px; min-height: 34px; padding: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: 14px; }
 .text-entry input::placeholder { color: var(--muted); }
 .text-entry-note { font-size: 12px; color: var(--accent); }
+@media (pointer: coarse) { .text-entry input { font-size: 16px; } }
+@media (max-width: 640px) { .control-dock { flex-wrap: wrap; } }
 .media-controls { gap: 17px; border-left: 1px solid var(--edge); border-right: 1px solid var(--edge); padding: 0 32px; }
 .play-button { display: grid; place-items: center; width: 50px; height: 50px; background: var(--accent); color: #253414; border-radius: 50%; }
 .play-button:not(:disabled):hover { background: #e2ffa8; transform: scale(1.04); }

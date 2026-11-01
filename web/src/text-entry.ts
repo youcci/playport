@@ -2,6 +2,8 @@ import type { ClientMessage } from './protocol';
 
 export const MAX_PASTE_CHARS = 1000;
 
+const MAX_NOTED_CHARS = 20;
+const OTHER_FIELDS = 'input, select, textarea, [contenteditable="true"]';
 const KEY_ENTER = 0x28;
 const KEY_BACKSPACE = 0x2a;
 const KEY_SPACE = 0x2c;
@@ -47,10 +49,10 @@ function keyFor(char: string): number | undefined {
 export function textToKeys(text: string): TextKeys {
   const keys: number[] = [];
   const skipped = new Set<string>();
-  for (const char of text.replace(/\r\n?|\n|\t/g, ' ')) {
-    const plain = char.normalize('NFD').replace(/\p{M}|\p{Cf}|\p{Cc}/gu, '').toLowerCase();
+  for (const char of text.replace(/\r\n|[\r\n\t\v\f\u0085\p{Z}]/gu, ' ')) {
+    const plain = char.normalize('NFKD').replace(/\p{M}|\p{Cf}|\p{Cc}/gu, '').toLowerCase();
     const mapped = Array.from(plain, keyFor);
-    if (mapped.some((key) => key === undefined)) {
+    if (mapped.some((key) => key === undefined) || (char !== ' ' && plain.includes(' '))) {
       skipped.add(char);
       continue;
     }
@@ -64,6 +66,8 @@ export function textToKeys(text: string): TextKeys {
 
 /** The text box under the screen, plus paste anywhere in the viewer. */
 export class TextEntry {
+  private lastKey = 0;
+
   constructor(
     private readonly elements: TextEntryElements,
     private readonly send: (message: ClientMessage) => void,
@@ -76,6 +80,7 @@ export class TextEntry {
     input.addEventListener('compositionend', this.flushBox);
     input.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('paste', this.onPaste);
+    window.addEventListener('pointerup', this.onPointerUp);
   }
 
   detach(): void {
@@ -85,15 +90,19 @@ export class TextEntry {
     input.removeEventListener('compositionend', this.flushBox);
     input.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('paste', this.onPaste);
+    window.removeEventListener('pointerup', this.onPointerUp);
   }
 
   close(): void {
-    const { panel, input, toggle, surface } = this.elements;
+    const { panel, input, note, toggle, surface } = this.elements;
     if (panel.hidden) return;
     panel.hidden = true;
     input.value = '';
+    note.textContent = '';
+    note.hidden = true;
     toggle.setAttribute('aria-pressed', 'false');
     surface.focus({ preventScroll: true });
+    this.send({ type: 'keysCancel' });
   }
 
   private open(): void {
@@ -101,6 +110,20 @@ export class TextEntry {
     panel.hidden = false;
     toggle.setAttribute('aria-pressed', 'true');
     input.focus();
+  }
+
+  /** With a mouse, keeps typing in the box after a click; otherwise keys would fire CarPlay shortcuts. */
+  private readonly onPointerUp = (event: PointerEvent): void => {
+    const { panel, input } = this.elements;
+    if (panel.hidden || event.pointerType === 'touch') return;
+    if (document.querySelector('dialog[open]') || this.isOtherField(event.target)) return;
+    input.focus({ preventScroll: true });
+  };
+
+  private isOtherField(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    const field = target.closest(OTHER_FIELDS);
+    return field !== null && field !== this.elements.input && (field as HTMLInputElement).type !== 'range';
   }
 
   private readonly onToggle = (): void => {
@@ -120,7 +143,7 @@ export class TextEntry {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.isComposing) return;
+    if (event.isComposing || event.keyCode === 229) return;
     switch (event.key) {
       case 'Backspace':
         event.preventDefault();
@@ -128,7 +151,7 @@ export class TextEntry {
         break;
       case 'Enter':
         event.preventDefault();
-        this.sendKeys([KEY_ENTER]);
+        if (!event.repeat) this.sendKeys([KEY_ENTER]);
         break;
       case 'Escape':
         event.preventDefault();
@@ -140,30 +163,35 @@ export class TextEntry {
   };
 
   private readonly onPaste = (event: ClipboardEvent): void => {
-    const { input, surface } = this.elements;
-    if (surface.inert || document.querySelector('dialog[open]')) return;
-    const target = event.target;
-    if (target !== input && target instanceof Element && target.closest('input, select, textarea, [contenteditable="true"]')) return;
+    if (this.elements.surface.inert || document.querySelector('dialog[open]') || this.isOtherField(event.target)) return;
     const text = event.clipboardData?.getData('text') ?? '';
     if (!text) return;
     event.preventDefault();
-    const chars = Array.from(text);
-    this.typeText(chars.slice(0, MAX_PASTE_CHARS).join(''), chars.length > MAX_PASTE_CHARS);
+    this.open();
+    this.typeText(text);
   };
 
-  private typeText(text: string, cut = false): void {
-    const { keys, skipped } = textToKeys(text);
+  private typeText(text: string): void {
+    const chars = Array.from(text);
+    const { keys, skipped } = textToKeys(chars.slice(0, MAX_PASTE_CHARS).join(''));
     this.sendKeys(keys);
     const parts: string[] = [];
-    if (cut) parts.push(`Only the first ${MAX_PASTE_CHARS.toLocaleString('en-US')} characters were typed.`);
-    if (skipped.length > 0) parts.push(`Not typed: ${skipped.join(' ')}`);
-    const { note, panel } = this.elements;
+    if (chars.length > MAX_PASTE_CHARS) parts.push(`Only the first ${MAX_PASTE_CHARS.toLocaleString('en-US')} characters were typed.`);
+    if (skipped.length > 0) {
+      const more = skipped.length - MAX_NOTED_CHARS;
+      parts.push(`Not typed: ${skipped.slice(0, MAX_NOTED_CHARS).join(' ')}${more > 0 ? ` and ${more} more` : ''}`);
+    }
+    const { note } = this.elements;
     note.textContent = parts.join(' ');
     note.hidden = parts.length === 0;
-    if (!note.hidden && panel.hidden) this.open();
   }
 
   private sendKeys(keys: number[]): void {
-    if (keys.length > 0 && !this.elements.surface.inert) this.send({ type: 'keys', keys });
+    if (this.elements.surface.inert) return;
+    // iOS turns a double space into a period, and these keys may follow an earlier send.
+    const fresh = keys[0] === KEY_SPACE && this.lastKey === KEY_SPACE ? keys.slice(1) : keys;
+    if (fresh.length === 0) return;
+    this.lastKey = fresh[fresh.length - 1];
+    this.send({ type: 'keys', keys: fresh });
   }
 }

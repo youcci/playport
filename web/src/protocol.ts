@@ -88,6 +88,7 @@ export type ClientMessage =
   | { type: 'night'; night: boolean }
   | { type: 'telephony'; telephony: number }
   | { type: 'keys'; keys: number[] }
+  | { type: 'keysCancel' }
   | { type: 'keyframe' }
   | { type: 'ping' };
 

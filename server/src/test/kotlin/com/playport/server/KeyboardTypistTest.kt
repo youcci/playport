@@ -1,8 +1,11 @@
 package com.playport.server
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KeyboardTypistTest {
@@ -47,6 +50,44 @@ class KeyboardTypistTest {
         typist.offer(listOf(0x04, 0x05))
         typist.clear()
         assertFalse(typist.typeNext())
+    }
+
+    @Test
+    fun workerTypesOfferedKeysUntilClosed() {
+        val typed = CountDownLatch(2)
+        val received = java.util.Collections.synchronizedList(mutableListOf<Int>())
+        val worker = KeyboardTypist(
+            send = {
+                received += it
+                typed.countDown()
+            },
+            pause = {},
+        )
+        worker.start()
+        worker.offer(listOf(0x04))
+        assertTrue(typed.await(5, TimeUnit.SECONDS))
+        worker.close()
+        assertEquals(listOf(0x04, 0), received.toList())
+    }
+
+    @Test
+    fun workerKeepsGoingAfterAFailedSend() {
+        val typed = CountDownLatch(2)
+        var failed = false
+        val worker = KeyboardTypist(
+            send = {
+                if (!failed) {
+                    failed = true
+                    error("socket gone")
+                }
+                typed.countDown()
+            },
+            pause = {},
+        )
+        worker.start()
+        worker.offer(listOf(0x04, 0x05))
+        assertTrue("the second key is still typed", typed.await(5, TimeUnit.SECONDS))
+        worker.close()
     }
 
     @Test

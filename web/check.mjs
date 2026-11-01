@@ -98,6 +98,10 @@ assert.deepEqual(textToKeys('a‍́️b'), { keys: [0x04, 0x05], skipped: [] }, 
 assert.deepEqual(keysFor('a  b'), keysFor('a b'), 'Spaces collapse, because iOS turns a double space into a period');
 assert.deepEqual(keysFor('a\n\nb'), keysFor('a b'));
 assert.deepEqual(keysFor('a @ b'), keysFor('a b'), 'A skipped character must not leave a double space behind');
+assert.deepEqual(keysFor('Rua\u00a0Augusta,\u202f1500'), keysFor('rua augusta, 1500'), 'Non-breaking and other Unicode spaces are spaces');
+assert.deepEqual(keysFor('a\u2028b\u2029c\vd\fe\u0085f'), keysFor('a b c d e f'), 'Every kind of line break is a space');
+assert.deepEqual(keysFor('nº 1ª'), keysFor('no 1a'), 'Ordinal indicators become letters');
+assert.deepEqual(textToKeys('´'), { keys: [], skipped: ['´'] }, 'A character that only decomposes to a space is still skipped');
 
 class FakeElement extends Element {
   constructor(tag) { super(tag); this.handlers = new Map(); this.hidden = true; this.value = ''; this.textContent = ''; this.attributes = new Map(); this.focused = 0; }
@@ -143,6 +147,9 @@ assert.equal(box.fire('keydown', { key: 'Enter' }).defaultPrevented, true);
 assert.deepEqual(sent.pop(), { type: 'keys', keys: [0x28] });
 assert.equal(box.fire('keydown', { key: 'Backspace', isComposing: true }).defaultPrevented, false, 'Keys that belong to a composition stay in the box');
 assert.equal(box.fire('keydown', { key: 'a' }).defaultPrevented, false, 'Ordinary keys arrive through the input event');
+assert.equal(box.fire('keydown', { key: 'Enter', repeat: true }).defaultPrevented, true);
+assert.equal(sent.length, 0, 'Holding Enter does not submit repeatedly');
+assert.equal(box.fire('keydown', { key: 'Enter', keyCode: 229 }).defaultPrevented, false, 'The Enter that confirms a composition stays in the box');
 assert.equal(sent.length, 0);
 
 typeInto('@');
@@ -170,6 +177,43 @@ assert.equal(sent.pop().keys.length, MAX_PASTE_CHARS, 'Long pastes are cut to th
 assert.match(note.textContent, /first 1,000 characters/);
 paste('b');
 sent.pop();
+typeInto('a'.repeat(MAX_PASTE_CHARS + 5));
+assert.equal(sent.pop().keys.length, MAX_PASTE_CHARS, 'The limit also covers text that arrives without a paste event');
+assert.match(note.textContent, /first 1,000 characters/);
+paste(Array.from({ length: 30 }, (_, i) => String.fromCodePoint(0x4e00 + i)).join(''));
+assert.match(note.textContent, /and 10 more$/, 'A long list of skipped characters stays short');
+assert.equal(sent.length, 0);
+
+typeInto('a');
+typeInto(' ');
+sent.length = 0;
+typeInto('@');
+typeInto(' ');
+assert.equal(sent.length, 0, 'A second space in a row is dropped across keystrokes too, so iOS adds no period');
+box.fire('keydown', { key: 'Backspace' });
+sent.length = 0;
+typeInto(' ');
+assert.deepEqual(sent.pop().keys, [0x2c], 'After Backspace the previous character is unknown, so a space goes through');
+
+const pointerUp = (target, pointerType = 'mouse') => windowHandlers.get('pointerup')({ target, pointerType });
+const slider = Object.assign(new FakeElement('input'), { type: 'range' });
+let focusedBox = box.focused;
+pointerUp(screen);
+assert.equal(box.focused, ++focusedBox, 'Clicking CarPlay keeps typing in the box, so keys cannot fire shortcuts');
+pointerUp(new FakeElement('button'));
+assert.equal(box.focused, ++focusedBox, 'So does clicking a viewer control');
+pointerUp(slider);
+assert.equal(box.focused, ++focusedBox, 'And using the volume slider');
+pointerUp(screen, 'touch');
+assert.equal(box.focused, focusedBox, 'Touch leaves focus alone, so the on-screen keyboard does not pop back up');
+pointerUp(new FakeElement('select'));
+assert.equal(box.focused, focusedBox, 'Another field keeps its focus');
+modalOpen = true;
+pointerUp(screen);
+modalOpen = false;
+assert.equal(box.focused, focusedBox, 'A dialog keeps its focus');
+assert.equal(paste('b', slider).defaultPrevented, true, 'A focused slider does not block paste');
+sent.pop();
 
 screen.inert = true;
 assert.equal(paste('c').defaultPrevented, false, 'Nothing is sent with no live screen');
@@ -179,27 +223,38 @@ assert.equal(sent.length, 0);
 assert.equal(box.value, '', 'Text typed with no live screen is discarded');
 screen.inert = false;
 
+typeInto('@');
 const focusedBefore = screen.focused;
 assert.equal(box.fire('keydown', { key: 'Escape' }).defaultPrevented, true);
 assert.equal(panel.hidden, true, 'Esc closes the box');
 assert.equal(screen.focused, focusedBefore + 1, 'Closing returns focus to the screen, so shortcuts work again');
 assert.equal(toggle.attributes.get('aria-pressed'), 'false');
-assert.equal(sent.length, 0);
+assert.deepEqual(sent.pop(), { type: 'keysCancel' }, 'Closing the box stops a paste that is still being typed');
+assert.equal(note.hidden, true, 'Closing clears the note');
+assert.equal(note.textContent, '');
 toggle.fire('click');
 toggle.fire('click');
 assert.equal(panel.hidden, true, 'The button closes the box too');
+assert.deepEqual(sent.pop(), { type: 'keysCancel' });
 const focusedWhenClosed = screen.focused;
 entry.close();
 assert.equal(screen.focused, focusedWhenClosed, 'Closing a closed box leaves focus alone, so a dropped session cannot pull focus from a panel');
+assert.equal(sent.length, 0, 'Closing a closed box cancels nothing');
+const focusedBoxClosed = box.focused;
+pointerUp(screen);
+assert.equal(box.focused, focusedBoxClosed, 'Clicks do not move focus to a closed box');
 paste('b');
 assert.deepEqual(sent.pop().keys, keysFor('b'), 'Paste works with the box closed');
-assert.equal(panel.hidden, true, 'A clean paste leaves the box closed');
+assert.equal(panel.hidden, false, 'A paste opens the box, so Enter submits, Esc stops it and the note can be seen');
+entry.close();
+sent.length = 0;
 paste('a@');
 sent.pop();
-assert.equal(panel.hidden, false, 'A paste that skipped something opens the box, so the note can be seen');
+assert.equal(panel.hidden, false);
 assert.equal(note.textContent, 'Not typed: @');
 assert.equal(toggle.attributes.get('aria-pressed'), 'true');
 entry.close();
 entry.detach();
 assert.equal(windowHandlers.has('paste'), false);
+assert.equal(windowHandlers.has('pointerup'), false);
 console.log('Viewer input check passed: keyboard isolation, native controls, portrait/landscape coordinates, multi-touch, release, text conversion, typing and paste.');
