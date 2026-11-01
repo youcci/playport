@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 /**
  * A [BlockingDuplexByteStream] over a child process' standard input/output.
  *
- * Used for the macOS Bluetooth bridge helper: the helper owns the RFCOMM channel and pipes its
+ * Used for the Bluetooth bridge helper: the helper owns the RFCOMM channel and pipes its
  * bytes through stdin/stdout while this side speaks the iAP2 link.
  */
 class ProcessByteStream(

@@ -137,7 +137,7 @@ data class ServerConfig(
                   --wifi-channel <n>        Wi-Fi channel (default: 0 = unknown)
                   --wifi-security <mode>    open | wpa | wpa2 (default: wpa2)
                   --bt-address <mac>        iPhone Bluetooth address for the wireless bootstrap
-                  --bt-bridge <path>        Path to the macOS bt-bridge helper
+                  --bt-bridge <path>        Path to the bt-bridge helper
                   --mdns <backend>          auto | dns-sd | jmdns (default: auto)
                   --http                    Serve the UI over plain HTTP (WebCodecs then only works on localhost)
                   --token <token>           Browser access token (default: generated per start)
