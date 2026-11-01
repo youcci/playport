@@ -151,6 +151,8 @@ $BRIDGE --pair AA:BB:CC:DD:EE:FF     # confirm the code on the iPhone
 #    · Allow the iPhone through your firewall; it connects in on port 7000 and on random
 #      media ports. With ufw: sudo ufw allow from <iphone-ip>
 #      (undo it with: sudo ufw delete allow from <iphone-ip>)
+#      <iphone-ip> is under iPhone Settings → Wi-Fi → the (i) next to the network. Update
+#      the rule if the phone's address changes.
 
 # 6. Run the server (use the Wi-Fi name the iPhone is on)
 ./gradlew :server:run --args="--wireless --wifi-ssid \"YOUR_WIFI\" --wifi-passphrase \"YOUR_PASSWORD\""
@@ -158,7 +160,7 @@ $BRIDGE --pair AA:BB:CC:DD:EE:FF     # confirm the code on the iPhone
 
 On Linux, always pass `--wifi-ssid` and `--wifi-passphrase`, because the network isn't detected
 automatically. Hand over a WPA2 network: `nmcli -f SSID,CHAN,SECURITY dev wifi list` shows what each
-one uses, and a WPA3 network given as the default `--wifi-security wpa2` didn't complete the handoff
+one uses (it needs NetworkManager; without it, the router or `iw` can show the same), and a WPA3 network given as the default `--wifi-security wpa2` didn't complete the handoff
 in testing. `--wifi-channel` is optional. If the machine is on Ethernet, also pass `--bind <lan-ip>`.
 The iPhone's Wi-Fi must reach that subnet, including multicast.
 
@@ -297,7 +299,7 @@ Every option can be given as a CLI flag; UI changes are saved to `~/.playport/co
 |---|---|
 | macOS: `bt-bridge` aborts immediately (`SIGABRT`) | macOS Bluetooth privacy. System Settings → Privacy & Security → Bluetooth → enable your terminal app. |
 | macOS: iPhone never appears in Bluetooth settings | Expected — macOS hides iPhones. Pair with `macos/bt-bridge/bt-bridge --pair <address>` (with Settings → Bluetooth open on the phone). |
-| `--pair` hangs | The device is already paired; just start the server, or use `--force-pair` to re-bond. |
+| macOS: `--pair` hangs | The device is already paired; just start the server, or use `--force-pair` to re-bond. |
 | `no Wi-Fi network detected` | macOS hides the SSID from processes without Location Services, or the Wi-Fi is on another interface. Pass `--wifi-ssid` and `--wifi-passphrase`, or grant Location Services to your terminal. On Linux the network is never detected, so always pass both flags. |
 | `adapter is powered off` | The Bluetooth adapter is off. Run `bluetoothctl power on`. |
 | Linux: `--pair` fails or times out | Forget this computer on the iPhone, keep Settings → Bluetooth open, and retry with `--force-pair`. |
