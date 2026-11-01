@@ -157,8 +157,10 @@ $BRIDGE --pair AA:BB:CC:DD:EE:FF     # confirm the code on the iPhone
 ```
 
 On Linux, always pass `--wifi-ssid` and `--wifi-passphrase`, because the network isn't detected
-automatically. If the machine is on Ethernet, also pass `--bind <lan-ip>`. The iPhone's Wi-Fi must
-reach that subnet, including multicast.
+automatically. Hand over a WPA2 network: `nmcli -f SSID,CHAN,SECURITY dev wifi list` shows what each
+one uses, and a WPA3 network given as the default `--wifi-security wpa2` didn't complete the handoff
+in testing. `--wifi-channel` is optional. If the machine is on Ethernet, also pass `--bind <lan-ip>`.
+The iPhone's Wi-Fi must reach that subnet, including multicast.
 
 Open the **https://** URL the server prints (it contains an access token) and accept the
 self-signed certificate warning once. HTTPS is required because browsers only expose WebCodecs —
@@ -300,6 +302,9 @@ Every option can be given as a CLI flag; UI changes are saved to `~/.playport/co
 | `adapter is powered off` | The Bluetooth adapter is off. Run `bluetoothctl power on`. |
 | Linux: `--pair` fails or times out | Forget this computer on the iPhone, keep Settings → Bluetooth open, and retry with `--force-pair`. |
 | Linux: no CarPlay prompt, or no video after the Bluetooth step | The firewall is blocking the iPhone. Allow it through, as in Quick start step 5. |
+| Linux: PlayPort is listed in the phone's CarPlay settings, but the screen never opens | The Wi-Fi details handed to the phone don't match the network. Use a WPA2 network and check `--wifi-ssid`, `--wifi-passphrase` and `--wifi-security`. |
+| Viewer stays blank after a restart | The token changes on every start, so old tabs stop working. Close them and open the full printed URL, including `?token=…`, or set a fixed one with `--token`. |
+| Log fills with `TLS handshake failed … certificate_unknown` | A browser tab hasn't accepted the certificate and keeps retrying. CarPlay isn't affected. Close old tabs and accept the warning in a new one. |
 | Wrong address in the printed URL | The server picked another interface. Pass `--bind <lan-ip>`. |
 | Phone connects but video is black | Open the **https://** URL (WebCodecs needs a secure context) and hard-refresh. Press **Fix video** to force a keyframe. |
 | `H.265/HEVC … cannot decode` | Your browser lacks HEVC. Switch the codec back to H.264 in the Display panel. |
@@ -354,7 +359,10 @@ persistence. Tested with H.264; HEVC passthrough is implemented but depends on y
 
 - Not an Apple-certified product; the public identity is shared and can be revoked by Apple.
 - Wired USB CarPlay is not supported; wireless only.
-- Linux support uses `linux/bt-bridge` and BlueZ, and has only been tested on Omarchy/Arch.
+- Linux support uses `linux/bt-bridge` and BlueZ, and has only been tested on Omarchy/Arch. It has
+  been validated there with an iPhone (iOS 27), with the host on Ethernet and the phone on a WPA2
+  network: pairing, wireless bootstrap, MFi authentication, live H.264 video, touch input and
+  reconnecting after the phone's Wi-Fi drops.
 - Telephony buttons are implemented but their HID indexes are unverified in DiPlay — report if
   **Call** does nothing during a call.
 - H.265/HEVC requires a browser with HEVC WebCodecs support (Chrome/Edge on macOS, Safari 17+).
