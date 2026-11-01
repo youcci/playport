@@ -23,6 +23,7 @@ const emptyKnob = (overrides: Partial<KnobState> = {}): KnobState => ({
 /** Maps browser pointer/keyboard input to CarPlay touch and knob HID messages. */
 export class InputController {
   private readonly pointers = new Map<number, ActivePointer>();
+  private readonly lastPositions = Array.from({ length: MAX_CONTACTS }, () => ({ x: 0, y: 0 }));
   private pendingFlush = 0;
 
   constructor(
@@ -78,6 +79,7 @@ export class InputController {
     const pointer = this.pointers.get(event.pointerId);
     if (!pointer) return;
     event.preventDefault();
+    this.lastPositions[pointer.slot] = { x: pointer.x, y: pointer.y };
     this.pointers.delete(event.pointerId);
     this.scheduleFlush();
   };
@@ -150,12 +152,11 @@ export class InputController {
     if (this.pendingFlush !== 0) return;
     this.pendingFlush = window.requestAnimationFrame(() => {
       this.pendingFlush = 0;
-      const contacts: TouchContact[] = Array.from(this.pointers.values()).map((pointer) => ({
-        id: pointer.slot,
-        x: pointer.x,
-        y: pointer.y,
-        down: pointer.down,
-      }));
+      const active = new Map(Array.from(this.pointers.values(), (pointer) => [pointer.slot, pointer]));
+      const contacts: TouchContact[] = this.lastPositions.map((last, slot) => {
+        const pointer = active.get(slot);
+        return pointer ? { id: slot, x: pointer.x, y: pointer.y, down: true } : { id: slot, x: last.x, y: last.y, down: false };
+      });
       this.send({ type: 'touch', contacts });
     });
   }
