@@ -23,7 +23,8 @@ pub enum PumpEnd {
     RfcommClosed,
 }
 
-// Link markers sent before the channel opens are stale by the time it does, so they are dropped.
+// The server's writes block its only link worker with no timeout, so stdin must keep draining until the channel
+// opens. The bytes can be dropped: they are only link markers, which the server resends each second.
 pub async fn drain_until<I: AsyncRead + Unpin, T>(
     stdin: &mut I,
     open: impl Future<Output = T>,
@@ -123,7 +124,9 @@ pub async fn run(address: Address) -> Result<(), String> {
     }
 
     log(&format!("RFCOMM channel opening to {address}"));
+    // One handle for the whole run: an in-flight blocking read keeps its bytes in the handle, so a second would lose a chunk.
     let mut stdin = tokio::io::stdin();
+    // Dropping the profile handle unregisters the profile, which closes the connection.
     let (_handle, stream) = match drain_until(&mut stdin, connect(&session, &device, address)).await {
         DrainEnd::StdinClosed => {
             log("stdin closed");

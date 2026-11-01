@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bluer::agent::{Agent, ReqError};
+use bluer::agent::{Agent, ReqError, ReqResult};
 use bluer::{Adapter, AdapterEvent, Address, DiscoveryFilter, DiscoveryTransport, Session};
 use futures::{pin_mut, FutureExt, StreamExt};
 
@@ -128,6 +128,11 @@ async fn find(adapter: &Adapter, address: Address) -> Result<(), String> {
     }
 }
 
+// The agent is BlueZ's default for the whole adapter while pairing, so it must not answer for other devices.
+fn accept_only(device: Address, target: Address) -> ReqResult<()> {
+    if device == target { Ok(()) } else { Err(ReqError::Rejected) }
+}
+
 pub async fn pair(session: &Session, adapter: &Adapter, address: Address, force: bool) -> Result<(), String> {
     require_powered(adapter).await?;
     adapter.set_discovery_filter(br_edr()).await.map_err(|e| format!("cannot set the discovery filter: {e}"))?;
@@ -143,15 +148,17 @@ pub async fn pair(session: &Session, adapter: &Adapter, address: Address, force:
 
     let agent = Agent {
         request_default: true,
-        request_confirmation: Some(Box::new(|req| {
+        request_confirmation: Some(Box::new(move |req| {
             async move {
+                accept_only(req.device, address)?;
                 println!("{}", confirm_line(req.passkey));
                 Ok(())
             }
             .boxed()
         })),
-        display_passkey: Some(Box::new(|req| {
+        display_passkey: Some(Box::new(move |req| {
             async move {
+                accept_only(req.device, address)?;
                 println!("{}", passkey_line(req.passkey));
                 Ok(())
             }
@@ -211,6 +218,13 @@ mod tests {
         assert_eq!(report.observe(addr(), None, false, true), None);
         assert_eq!(report.observe(addr(), Some("iPhone"), false, true).as_deref(), Some("AA:BB:CC:DD:EE:FF iPhone [new]"));
         assert!(report.finish().is_empty());
+    }
+    #[test] fn agent_accepts_the_target_device() {
+        assert!(accept_only(addr(), addr()).is_ok());
+    }
+    #[test] fn agent_rejects_any_other_device() {
+        let other = parse_address("11:22:33:44:55:66").unwrap();
+        assert!(accept_only(other, addr()).is_err());
     }
     #[test] fn device_that_never_gets_a_name_prints_at_the_end() {
         let mut report = ScanReport::new();
