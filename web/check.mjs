@@ -2,10 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 
-// Exercise the real controller with just the DOM surface it uses; no browser or phone needed.
-const source = readFileSync(new URL('./src/input.ts', import.meta.url), 'utf8');
-const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
-const { InputController } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+// Exercise the real controllers with just the DOM surface they use; no browser or phone needed.
+const load = async (path) => {
+  const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+};
+const { InputController } = await load('./src/input.ts');
+const { TextEntry, textToKeys, MAX_PASTE_CHARS } = await load('./src/text-entry.ts');
 const listeners = new Map();
 const frames = [];
 const messages = [];
@@ -54,19 +58,203 @@ key('ArrowLeft', new Element('button'));
 assert.equal(messages.pop().knob.x, -127, 'Navigation still works after clicking a toolbar button');
 
 const pointer = (id, x, y) => ({ pointerId: id, clientX: x, clientY: y, preventDefault() {} });
+const idle = { x: 0, y: 0, down: false };
 listeners.get('pointerdown')(pointer(1, 300, 162.5));
 flush();
-assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: true }]);
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: true }, { id: 1, ...idle }]);
+listeners.get('pointerup')(pointer(1, 0, 0));
+flush();
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: false }, { id: 1, ...idle }], 'A lifted finger releases at its last position, not at the event position');
+listeners.get('pointerdown')(pointer(1, 300, 162.5));
 rect = { left: 100, top: 50, width: 225, height: 400 };
 listeners.get('pointermove')(pointer(1, 212.5, 250));
 listeners.get('pointerdown')(pointer(2, 500, 0));
 listeners.get('pointerdown')(pointer(3, 200, 100));
 flush();
-assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: true }, { id: 1, x: 1, y: 0, down: true }]);
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: true }, { id: 1, x: 1, y: 0, down: true }], 'A third finger is ignored');
 listeners.get('pointerup')(pointer(1, 0, 0));
+flush();
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: false }, { id: 1, x: 1, y: 0, down: true }], 'Lifting the first finger keeps the second in its slot');
 listeners.get('pointercancel')(pointer(2, 0, 0));
 flush();
-assert.deepEqual(messages.pop().contacts, [], 'Release every contact, including cancelled touches');
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: .5, y: .5, down: false }, { id: 1, x: 1, y: 0, down: false }], 'A cancelled touch releases like a lift');
+listeners.get('pointerdown')(pointer(4, 100, 50));
+flush();
+assert.deepEqual(messages.pop().contacts, [{ id: 0, x: 0, y: 0, down: true }, { id: 1, x: 1, y: 0, down: false }], 'A reused slot starts at its new finger');
+listeners.get('pointerup')(pointer(4, 300, 300));
+flush();
+messages.length = 0;
 controller.detach();
 assert.equal(listeners.size, 0);
-console.log('Viewer input check passed: keyboard isolation, native controls, portrait/landscape coordinates, multi-touch, and release.');
+
+const keysFor = (text) => textToKeys(text).keys;
+assert.deepEqual(textToKeys('ab1 0'), { keys: [0x04, 0x05, 0x1e, 0x2c, 0x27], skipped: [] }, 'Letters, digits and space map to plain key codes');
+assert.deepEqual(keysFor('z9'), [0x1d, 0x26]);
+assert.deepEqual(keysFor('São PRAÇA é'), keysFor('sao praca e'), 'Capitals become lowercase and accents are removed');
+assert.deepEqual(keysFor("-=[]\\;'`,./"), [0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38], 'Every unshifted punctuation key is typed');
+assert.deepEqual(keysFor('a\r\nb\tc\nd\re'), keysFor('a b c d e'), 'Line breaks and tabs become one space, so a paste cannot submit itself');
+assert.deepEqual(textToKeys('a@b!@😀ß'), { keys: [0x04, 0x05], skipped: ['@', '!', '😀', 'ß'] }, 'Anything else is skipped, once each and in order');
+assert.deepEqual(textToKeys('a‍́️b'), { keys: [0x04, 0x05], skipped: [] }, 'Invisible characters are dropped without a report');
+assert.deepEqual(keysFor('a  b'), keysFor('a b'), 'Spaces collapse, because iOS turns a double space into a period');
+assert.deepEqual(keysFor('a\n\nb'), keysFor('a b'));
+assert.deepEqual(keysFor('a @ b'), keysFor('a b'), 'A skipped character must not leave a double space behind');
+assert.deepEqual(keysFor('Rua\u00a0Augusta,\u202f1500'), keysFor('rua augusta, 1500'), 'Non-breaking and other Unicode spaces are spaces');
+assert.deepEqual(keysFor('a\u2028b\u2029c\vd\fe\u0085f'), keysFor('a b c d e f'), 'Every kind of line break is a space');
+assert.deepEqual(keysFor('nº 1ª'), keysFor('no 1a'), 'Ordinal indicators become letters');
+assert.deepEqual(textToKeys('´'), { keys: [], skipped: ['´'] }, 'A character that only decomposes to a space is still skipped');
+
+class FakeElement extends Element {
+  constructor(tag) { super(tag); this.handlers = new Map(); this.hidden = true; this.value = ''; this.textContent = ''; this.attributes = new Map(); this.focused = 0; }
+  addEventListener(name, handler) { this.handlers.set(name, handler); }
+  removeEventListener(name) { this.handlers.delete(name); }
+  setAttribute(name, value) { this.attributes.set(name, value); }
+  focus() { this.focused += 1; }
+  fire(name, event = {}) { const full = { target: this, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...event }; this.handlers.get(name)(full); return full; }
+}
+const panel = new FakeElement('div');
+const box = new FakeElement('input');
+const note = new FakeElement('span');
+const toggle = new FakeElement('button');
+const screen = new FakeElement('canvas');
+screen.inert = false;
+const sent = [];
+const entry = new TextEntry({ panel, input: box, note, toggle, surface: screen }, (message) => sent.push(message));
+entry.attach();
+const windowHandlers = listeners;
+const typeInto = (text, event = {}) => { box.value = text; return box.fire('input', { isComposing: false, ...event }); };
+const paste = (text, target = screen) => { const event = { target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, clipboardData: { getData: () => text } }; windowHandlers.get('paste')(event); return event; };
+
+assert.equal(panel.hidden, true, 'The text box starts closed');
+toggle.fire('click');
+assert.equal(panel.hidden, false);
+assert.equal(box.focused, 1, 'Opening the box focuses it');
+assert.equal(toggle.attributes.get('aria-pressed'), 'true');
+
+typeInto('é');
+assert.deepEqual(sent.pop(), { type: 'keys', keys: [0x08] }, 'Typed text goes straight to CarPlay');
+assert.equal(box.value, '', 'The box empties after sending');
+typeInto('´', { isComposing: true });
+assert.equal(sent.length, 0, 'A dead key waits for its composed character');
+assert.equal(box.value, '´');
+box.value = 'ã';
+box.fire('compositionend');
+assert.deepEqual(sent.pop(), { type: 'keys', keys: [0x04] }, 'The composed character is sent when composition ends');
+assert.equal(box.value, '');
+
+assert.equal(box.fire('keydown', { key: 'Backspace' }).defaultPrevented, true);
+assert.deepEqual(sent.pop(), { type: 'keys', keys: [0x2a] });
+assert.equal(box.fire('keydown', { key: 'Enter' }).defaultPrevented, true);
+assert.deepEqual(sent.pop(), { type: 'keys', keys: [0x28] });
+assert.equal(box.fire('keydown', { key: 'Backspace', isComposing: true }).defaultPrevented, false, 'Keys that belong to a composition stay in the box');
+assert.equal(box.fire('keydown', { key: 'a' }).defaultPrevented, false, 'Ordinary keys arrive through the input event');
+assert.equal(box.fire('keydown', { key: 'Enter', repeat: true }).defaultPrevented, true);
+assert.equal(sent.length, 0, 'Holding Enter does not submit repeatedly');
+assert.equal(box.fire('keydown', { key: 'Enter', keyCode: 229 }).defaultPrevented, false, 'The Enter that confirms a composition stays in the box');
+assert.equal(sent.length, 0);
+
+typeInto('@');
+assert.equal(sent.length, 0, 'Text with nothing typeable sends nothing');
+assert.equal(note.textContent, 'Not typed: @');
+assert.equal(note.hidden, false);
+typeInto('a');
+sent.pop();
+assert.equal(note.hidden, true, 'The note clears once typing works again');
+
+assert.equal(paste('Rua A, 1 @').defaultPrevented, true, 'Paste works anywhere in the viewer');
+assert.deepEqual(sent.pop().keys, keysFor('rua a, 1 '));
+assert.equal(note.textContent, 'Not typed: @');
+assert.equal(paste('b', box).defaultPrevented, true, 'Paste works in the text box too');
+assert.deepEqual(sent.pop().keys, keysFor('b'));
+assert.equal(paste('c', new FakeElement('input')).defaultPrevented, false, 'Pasting into another field is left alone');
+assert.equal(paste('c', new FakeElement('textarea')).defaultPrevented, false);
+modalOpen = true;
+assert.equal(paste('c').defaultPrevented, false, 'Pasting is ignored while a dialog is open');
+modalOpen = false;
+assert.equal(sent.length, 0);
+
+paste('a'.repeat(MAX_PASTE_CHARS + 5));
+assert.equal(sent.pop().keys.length, MAX_PASTE_CHARS, 'Long pastes are cut to the limit');
+assert.match(note.textContent, /first 1,000 characters/);
+paste('b');
+sent.pop();
+typeInto('a'.repeat(MAX_PASTE_CHARS + 5));
+assert.equal(sent.pop().keys.length, MAX_PASTE_CHARS, 'The limit also covers text that arrives without a paste event');
+assert.match(note.textContent, /first 1,000 characters/);
+paste(Array.from({ length: 30 }, (_, i) => String.fromCodePoint(0x4e00 + i)).join(''));
+assert.match(note.textContent, /and 10 more$/, 'A long list of skipped characters stays short');
+assert.equal(sent.length, 0);
+
+typeInto('a');
+typeInto(' ');
+sent.length = 0;
+typeInto('@');
+typeInto(' ');
+assert.equal(sent.length, 0, 'A second space in a row is dropped across keystrokes too, so iOS adds no period');
+box.fire('keydown', { key: 'Backspace' });
+sent.length = 0;
+typeInto(' ');
+assert.deepEqual(sent.pop().keys, [0x2c], 'After Backspace the previous character is unknown, so a space goes through');
+
+const pointerUp = (target, pointerType = 'mouse') => windowHandlers.get('pointerup')({ target, pointerType });
+const slider = Object.assign(new FakeElement('input'), { type: 'range' });
+let focusedBox = box.focused;
+pointerUp(screen);
+assert.equal(box.focused, ++focusedBox, 'Clicking CarPlay keeps typing in the box, so keys cannot fire shortcuts');
+pointerUp(new FakeElement('button'));
+assert.equal(box.focused, ++focusedBox, 'So does clicking a viewer control');
+pointerUp(slider);
+assert.equal(box.focused, ++focusedBox, 'And using the volume slider');
+pointerUp(screen, 'touch');
+assert.equal(box.focused, focusedBox, 'Touch leaves focus alone, so the on-screen keyboard does not pop back up');
+pointerUp(new FakeElement('select'));
+assert.equal(box.focused, focusedBox, 'Another field keeps its focus');
+modalOpen = true;
+pointerUp(screen);
+modalOpen = false;
+assert.equal(box.focused, focusedBox, 'A dialog keeps its focus');
+assert.equal(paste('b', slider).defaultPrevented, true, 'A focused slider does not block paste');
+sent.pop();
+
+screen.inert = true;
+assert.equal(paste('c').defaultPrevented, false, 'Nothing is sent with no live screen');
+typeInto('c');
+box.fire('keydown', { key: 'Enter' });
+assert.equal(sent.length, 0);
+assert.equal(box.value, '', 'Text typed with no live screen is discarded');
+screen.inert = false;
+
+typeInto('@');
+const focusedBefore = screen.focused;
+assert.equal(box.fire('keydown', { key: 'Escape' }).defaultPrevented, true);
+assert.equal(panel.hidden, true, 'Esc closes the box');
+assert.equal(screen.focused, focusedBefore + 1, 'Closing returns focus to the screen, so shortcuts work again');
+assert.equal(toggle.attributes.get('aria-pressed'), 'false');
+assert.deepEqual(sent.pop(), { type: 'keysCancel' }, 'Closing the box stops a paste that is still being typed');
+assert.equal(note.hidden, true, 'Closing clears the note');
+assert.equal(note.textContent, '');
+toggle.fire('click');
+toggle.fire('click');
+assert.equal(panel.hidden, true, 'The button closes the box too');
+assert.deepEqual(sent.pop(), { type: 'keysCancel' });
+const focusedWhenClosed = screen.focused;
+entry.close();
+assert.equal(screen.focused, focusedWhenClosed, 'Closing a closed box leaves focus alone, so a dropped session cannot pull focus from a panel');
+assert.equal(sent.length, 0, 'Closing a closed box cancels nothing');
+const focusedBoxClosed = box.focused;
+pointerUp(screen);
+assert.equal(box.focused, focusedBoxClosed, 'Clicks do not move focus to a closed box');
+paste('b');
+assert.deepEqual(sent.pop().keys, keysFor('b'), 'Paste works with the box closed');
+assert.equal(panel.hidden, false, 'A paste opens the box, so Enter submits, Esc stops it and the note can be seen');
+entry.close();
+sent.length = 0;
+paste('a@');
+sent.pop();
+assert.equal(panel.hidden, false);
+assert.equal(note.textContent, 'Not typed: @');
+assert.equal(toggle.attributes.get('aria-pressed'), 'true');
+entry.close();
+entry.detach();
+assert.equal(windowHandlers.has('paste'), false);
+assert.equal(windowHandlers.has('pointerup'), false);
+console.log('Viewer input check passed: keyboard isolation, native controls, portrait/landscape coordinates, multi-touch, release, text conversion, typing and paste.');

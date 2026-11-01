@@ -12,8 +12,10 @@ identity/*
 # Runtime state
 state/
 
-# macOS helper binary
+# Bluetooth helper binaries
 macos/bt-bridge/bt-bridge
+linux/bt-bridge/bt-bridge
+linux/bt-bridge/target/
 
 # Editors / OS
 .DS_Store

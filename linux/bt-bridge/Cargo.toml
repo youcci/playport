@@ -1,0 +1,13 @@
+[package]
+name = "bt-bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bluer = { version = "0.17", features = ["bluetoothd", "rfcomm"] }
+futures = "0.3"
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt-multi-thread", "time"] }
+
+[profile.release]
+strip = true

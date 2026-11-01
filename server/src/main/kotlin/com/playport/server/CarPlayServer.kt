@@ -59,6 +59,8 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
     @Volatile private var advertiser: ServiceAdvertiser? = null
     @Volatile private var wireless: WirelessBootstrap? = null
     @Volatile private var lastBootstrapAt = System.currentTimeMillis()
+    @Volatile private var bootstrapStale = false
+    private val typist = KeyboardTypist(send = { activeSession?.sendKeyboard(it) })
     private val closed = AtomicBoolean(false)
 
     val airPlayConfig: AirPlayConfig
@@ -89,12 +91,17 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
         override fun onSessionActive(session: AirPlaySession) {
             log.info("CarPlay session active peer={}", session.host)
             activeSession = session
+            bootstrapStale = false
             hub.setSessionState(true, null)
         }
 
         override fun onSessionEnded(session: AirPlaySession) {
             log.info("CarPlay session ended peer={}", session.host)
-            if (activeSession === session) activeSession = null
+            if (activeSession === session) {
+                activeSession = null
+                bootstrapStale = true
+            }
+            typist.clear()
             bridge.endMicrophone()
             hub.setSessionState(false, null)
         }
@@ -122,6 +129,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
         hub.onApplyDisplay = ::applyDisplay
         hub.onMicrophoneData = { opus, payload -> bridge.sendMicrophonePayload(payload, opus) }
         startSupervisor()
+        typist.start()
         hub.onViewerJoined = { streamType ->
             if (bridge.hasRecoveryHandler) {
                 log.info("requesting keyframe for stream {}", streamType)
@@ -202,6 +210,8 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
                 "siri" -> session.invokeSiri()
                 "telephony" -> message.telephony?.let(session::sendTelephony)
                 "night" -> message.night?.let(session::setNightMode)
+                "keys" -> typist.offer(message.keys)
+                "keysCancel" -> typist.clear()
             }
         } catch (error: Exception) {
             log.warn("Input routing failed type={}: {}", message.type, error.message)
@@ -267,9 +277,8 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
                             lastBootstrapAt = System.currentTimeMillis()
                             continue
                         }
-                        if (wireless?.running == true) continue
-                        val now = System.currentTimeMillis()
-                        if (now - lastBootstrapAt < BOOTSTRAP_COOLDOWN_MS) continue
+                        val sinceBootstrap = System.currentTimeMillis() - lastBootstrapAt
+                        if (!shouldReinvite(false, wireless?.running == true, bootstrapStale, sinceBootstrap, BOOTSTRAP_COOLDOWN_MS)) continue
                         log.info("no CarPlay session; re-inviting the iPhone over Bluetooth/Wi-Fi")
                         restartWireless()
                     } catch (interrupted: InterruptedException) {
@@ -307,6 +316,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
     private fun restartWireless() {
         if (!config.wireless) return
         lastBootstrapAt = System.currentTimeMillis()
+        bootstrapStale = false
         val current = wireless
         wireless = null
         current?.close()
@@ -333,6 +343,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        typist.close()
         runCatching { wireless?.close() }
         runCatching { advertiser?.close() }
         runCatching { activeSession?.close() }
@@ -376,3 +387,13 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
         private const val BOOTSTRAP_COOLDOWN_MS = 20_000L
     }
 }
+
+/** True when the supervisor should re-invite the phone: no session, and a bootstrap that is stopped or went stale, past its cooldown. */
+internal fun shouldReinvite(
+    sessionActive: Boolean,
+    bootstrapRunning: Boolean,
+    bootstrapStale: Boolean,
+    millisSinceBootstrap: Long,
+    cooldownMillis: Long,
+): Boolean =
+    !sessionActive && (!bootstrapRunning || bootstrapStale) && millisSinceBootstrap >= cooldownMillis

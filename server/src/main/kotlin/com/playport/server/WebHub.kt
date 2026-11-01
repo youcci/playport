@@ -49,6 +49,7 @@ data class ClientMessage(
     val knob: KnobMessage? = null,
     val night: Boolean? = null,
     val telephony: Int? = null,
+    val keys: List<Int> = emptyList(),
 )
 
 @Serializable

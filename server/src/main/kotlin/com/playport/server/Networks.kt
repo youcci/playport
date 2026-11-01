@@ -12,12 +12,7 @@ object Networks {
         try {
             NetworkInterface.getNetworkInterfaces().toList().forEach { iface ->
                 if (!iface.isUp || iface.isLoopback || iface.isPointToPoint) return@forEach
-                val name = iface.name.lowercase()
-                if (name.startsWith("utun") || name.startsWith("awdl") || name.startsWith("llw") ||
-                    name.startsWith("bridge") || name.startsWith("ap1")
-                ) {
-                    return@forEach
-                }
+                if (isVirtualInterfaceName(iface.name)) return@forEach
                 iface.inetAddresses.toList().forEach { address ->
                     if (address is Inet4Address && !address.isLoopbackAddress && !address.isLinkLocalAddress) {
                         candidates.add(address)
@@ -29,6 +24,16 @@ object Networks {
         }
         return candidates.firstOrNull() ?: InetAddress.getLoopbackAddress()
     }
+
+    /** Tunnel, AirDrop, hotspot and container interfaces never carry the LAN the phone joins. */
+    fun isVirtualInterfaceName(name: String): Boolean {
+        val lower = name.lowercase()
+        return VIRTUAL_PREFIXES.any { lower.startsWith(it) }
+    }
+
+    private val VIRTUAL_PREFIXES = listOf(
+        "utun", "awdl", "llw", "bridge", "ap1", "docker", "br-", "veth", "virbr",
+    )
 
     fun resolve(bindAddress: String?): InetAddress =
         if (bindAddress.isNullOrBlank()) detectLanAddress() else InetAddress.getByName(bindAddress)

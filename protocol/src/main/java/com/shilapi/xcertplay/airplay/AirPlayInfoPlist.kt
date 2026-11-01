@@ -55,6 +55,7 @@ object AirPlayInfoPlist {
             AirPlayHid.knobHidDevice(MAIN_UUID),
             AirPlayHid.mediaHidDevice(MAIN_UUID),
             AirPlayHid.telephonyHidDevice(MAIN_UUID),
+            AirPlayHid.keyboardHidDevice(MAIN_UUID),
         )
         if (config.icons.isNotEmpty()) {
             info["oemIconVisible"] = true

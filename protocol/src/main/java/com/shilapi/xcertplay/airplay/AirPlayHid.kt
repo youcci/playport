@@ -24,6 +24,7 @@ object AirPlayHid {
     const val KNOB_HID_UID = 0x2a2a2a2b
     const val MEDIA_HID_UID = 0x2a2a2a2c
     const val TELEPHONY_HID_UID = 0x2a2a2a2d
+    const val KEYBOARD_HID_UID = 0x2a2a2a2e
 
     private const val TOUCH_CONTACTS = 2
     private const val BYTES_PER_FINGER = 6
@@ -39,6 +40,13 @@ object AirPlayHid {
 
     fun telephonyHidDevice(displayUuid: String): Map<String, Any?> =
         hidDeviceEntry(TELEPHONY_HID_UID, "xcertplay Telephony", telephonyDescriptor, displayUuid)
+
+    fun keyboardHidDevice(displayUuid: String): Map<String, Any?> =
+        hidDeviceEntry(KEYBOARD_HID_UID, "xcertplay Keyboard", keyboardDescriptor, displayUuid)
+
+    /** Modifiers stay empty: iOS keeps them held after their release, so only plain keys are sent. */
+    fun keyboardReport(keyCode: Int): ByteArray =
+        byteArrayOf(0, 0, keyCode.toByte(), 0, 0, 0, 0, 0)
 
     fun touchReport(contacts: List<AirPlayContact>): ByteArray {
         val report = ByteArray(BYTES_PER_FINGER * TOUCH_CONTACTS)
@@ -128,6 +136,15 @@ object AirPlayHid {
         0x09, 0xb6, 0x09, 0xb7, 0x09, 0xb8, 0x09, 0xb9, 0x09, 0xba, 0x09, 0xbb,
         0x05, 0x07, 0x09, 0x2a,
         0x75, 0x08, 0x95, 0x01, 0x81, 0x00, 0xc0,
+    )
+
+    /** Standard USB boot keyboard: modifiers, a reserved byte and six key codes. */
+    private val keyboardDescriptor = descriptor(
+        0x05, 0x01, 0x09, 0x06, 0xa1, 0x01,
+        0x05, 0x07, 0x19, 0xe0, 0x29, 0xe7, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x08, 0x81, 0x02,
+        0x95, 0x01, 0x75, 0x08, 0x81, 0x01,
+        0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65, 0x05, 0x07, 0x19, 0x00, 0x29, 0x65, 0x81, 0x00,
+        0xc0,
     )
 
     private fun descriptor(vararg bytes: Int): ByteArray = ByteArray(bytes.size) { bytes[it].toByte() }
