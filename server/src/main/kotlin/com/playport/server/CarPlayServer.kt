@@ -60,6 +60,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
     @Volatile private var wireless: WirelessBootstrap? = null
     @Volatile private var lastBootstrapAt = System.currentTimeMillis()
     @Volatile private var bootstrapStale = false
+    private val typist = KeyboardTypist(send = { activeSession?.sendKeyboard(it) })
     private val closed = AtomicBoolean(false)
 
     val airPlayConfig: AirPlayConfig
@@ -99,6 +100,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
             if (activeSession === session) {
                 activeSession = null
                 bootstrapStale = true
+                typist.clear()
             }
             bridge.endMicrophone()
             hub.setSessionState(false, null)
@@ -127,6 +129,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
         hub.onApplyDisplay = ::applyDisplay
         hub.onMicrophoneData = { opus, payload -> bridge.sendMicrophonePayload(payload, opus) }
         startSupervisor()
+        typist.start()
         hub.onViewerJoined = { streamType ->
             if (bridge.hasRecoveryHandler) {
                 log.info("requesting keyframe for stream {}", streamType)
@@ -207,6 +210,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
                 "siri" -> session.invokeSiri()
                 "telephony" -> message.telephony?.let(session::sendTelephony)
                 "night" -> message.night?.let(session::setNightMode)
+                "keys" -> typist.offer(message.keys)
             }
         } catch (error: Exception) {
             log.warn("Input routing failed type={}: {}", message.type, error.message)
@@ -338,6 +342,7 @@ class CarPlayServer(val config: ServerConfig, private val configStore: ConfigSto
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        typist.close()
         runCatching { wireless?.close() }
         runCatching { advertiser?.close() }
         runCatching { activeSession?.close() }

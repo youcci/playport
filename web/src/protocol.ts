@@ -87,6 +87,7 @@ export type ClientMessage =
   | { type: 'siri' }
   | { type: 'night'; night: boolean }
   | { type: 'telephony'; telephony: number }
+  | { type: 'keys'; keys: number[] }
   | { type: 'keyframe' }
   | { type: 'ping' };
 

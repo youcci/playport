@@ -1,5 +1,6 @@
 import { AudioEngine } from './audio';
 import { InputController } from './input';
+import { TextEntry } from './text-entry';
 import { MicrophoneUplink } from './mic';
 import type { ServerMessage, WireMessage } from './protocol';
 import { VideoPlayer } from './video';
@@ -128,10 +129,22 @@ const connection = new Connection(token, {
 
 const input = new InputController(canvas, (message) => connection.send(message));
 input.attach();
+const textEntry = new TextEntry(
+  {
+    panel: requiredElement('text-entry'),
+    input: requiredElement<HTMLInputElement>('text-entry-input'),
+    note: requiredElement('text-entry-note'),
+    toggle: requiredElement('btn-keyboard'),
+    surface: canvas,
+  },
+  (message) => connection.send(message),
+);
+textEntry.attach();
 
 function resetSession(): void {
   sessionActive = false;
   app.dataset.session = 'idle';
+  textEntry.close();
   canvas.inert = true;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-remote]')) button.disabled = true;
   video.close();

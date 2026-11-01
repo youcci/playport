@@ -70,11 +70,13 @@
             </div>
             <div class="viewer-footer"><span id="stream-info">Waiting for a video stream</span><span id="mic-status" role="status"></span><span class="stream-caption">CARPLAY / LIVE VIEW</span></div>
           </section>
+          <div id="text-entry" class="text-entry" hidden><svg class="icon"><use href="#i-keyboard"/></svg><input id="text-entry-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Type into CarPlay" placeholder="Type into the open CarPlay field. Esc to close."><span id="text-entry-note" class="text-entry-note" role="status" hidden></span></div>
           <div id="toolbar" class="control-dock" role="group" aria-label="CarPlay controls">
             <div class="control-group navigation-controls">
               <button id="btn-back" class="control-button" data-remote title="Back · Esc" disabled><svg class="icon"><use href="#i-back"/></svg><span>Back</span></button>
               <button id="btn-home" class="control-button" data-remote title="CarPlay home · Home" disabled><svg class="icon"><use href="#i-home"/></svg><span>Home</span></button>
               <button id="btn-select" class="control-button" data-remote title="Select · Enter" disabled><svg class="icon"><use href="#i-select"/></svg><span>Select</span></button>
+              <button id="btn-keyboard" class="control-button" data-remote aria-pressed="false" title="Type or paste text into CarPlay" disabled><svg class="icon"><use href="#i-keyboard"/></svg><span>Type</span></button>
             </div>
             <div class="control-group media-controls" role="group" aria-label="Media playback">
               <button id="btn-prev" class="icon-button" data-remote aria-label="Previous track" title="Previous track" disabled><svg class="icon"><use href="#i-prev"/></svg></button>
@@ -112,7 +114,7 @@
     <dialog id="help-panel" class="guide-dialog" aria-labelledby="help-title">
       <div class="panel-heading"><div><p class="eyebrow">A FEW THINGS TO KNOW</p><h2 id="help-title">Make yourself at home.</h2></div><button id="btn-help-close" class="icon-button" aria-label="Close guide"><svg class="icon"><use href="#i-close"/></svg></button></div>
       <section class="panel-section"><h3>Connect your iPhone</h3><ol class="connection-steps"><li><span>01</span><div><strong>Open your personal viewer link</strong><p>Use the HTTPS link printed by the PlayPort server. It includes your access token.</p></div></li><li><span>02</span><div><strong>Pair with PlayPort over Bluetooth</strong><p>On your iPhone, open Settings → Bluetooth and select the server’s device name. If asked for a PIN, enter <b>3939</b>.</p></div></li><li><span>03</span><div><strong>Let CarPlay take the wheel</strong><p>Keep the iPhone and server on the same Wi-Fi network. Accept the CarPlay prompt on your iPhone; the screen appears automatically.</p></div></li></ol></section>
-      <section class="panel-section"><h3>Keep your hands on the keyboard</h3><div class="shortcut-grid"><div><span>Navigate</span><span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></span></div><div><span>Select</span><kbd>Enter</kbd></div><div><span>Go back</span><kbd>Esc</kbd></div><div><span>CarPlay home</span><kbd>Home</kbd></div><div><span>Play / pause</span><kbd>Space</kbd></div><div><span>Talk to Siri</span><kbd>S</kbd></div></div><p class="panel-hint">Touch or click the live screen to control CarPlay directly. If video freezes, use the refresh button above the screen.</p></section>
+      <section class="panel-section"><h3>Keep your hands on the keyboard</h3><div class="shortcut-grid"><div><span>Navigate</span><span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></span></div><div><span>Select</span><kbd>Enter</kbd></div><div><span>Go back</span><kbd>Esc</kbd></div><div><span>CarPlay home</span><kbd>Home</kbd></div><div><span>Play / pause</span><kbd>Space</kbd></div><div><span>Talk to Siri</span><kbd>S</kbd></div><div><span>Paste into CarPlay</span><kbd>Ctrl V</kbd></div></div><p class="panel-hint">Touch or click the live screen to control CarPlay directly. If video freezes, use the refresh button above the screen.</p></section>
     </dialog>
     <script type="module" src="./src/main.ts"></script>
   </body>

@@ -8,7 +8,7 @@ A server-side CarPlay receiver that turns any screen on your network into a head
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#requirements)
 [![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#status-and-limitations)
-[![Tests](https://img.shields.io/badge/tests-103%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-112%20passing-brightgreen.svg)](#development)
 
 </div>
 
@@ -89,6 +89,8 @@ the browser** (no server-side decoding or re-encoding), and the browser decodes 
   and focus mode for a larger CarPlay screen.
 - **Touch and knob input** — up to two touch contacts, keyboard as rotary knob, toolbar buttons for
   Home/Back/Select, media transport and Siri.
+- **Typing and paste** — type or paste into a CarPlay text field from the browser, as lowercase text
+  without accents. See [Typing and paste](#typing-and-paste).
 - **Calls and Siri** — when the phone opens its speech/telephony stream, the browser asks for the
   microphone and streams audio back (PCM, or Opus when requested).
 - **Display control** — live resolution, portrait/landscape, frame rate, CarPlay UI size and
@@ -130,7 +132,7 @@ mkdir -p identity/offline-mfi
 cp /path/to/identity.pk8 /path/to/certificate.p7b identity/offline-mfi/
 
 # 2. Build everything
-./gradlew build                      # protocol + server, runs 103 tests
+./gradlew build                      # protocol + server, runs 112 tests
 (cd web && npm install && npm run build)
 
 # 3. Build the Bluetooth bridge
@@ -263,10 +265,28 @@ opens Siri or a call, the browser asks for microphone permission and sends audio
 | Esc / Backspace | Back |
 | Space | Play / pause |
 | S | Siri |
-| Viewer controls | Home, Back, Select, media transport, Siri, Call, Mute call, Night, Audio, Display, Refresh video, Focus mode, Fullscreen |
+| Ctrl+V | Types the clipboard into the open CarPlay text field |
+| Viewer controls | Home, Back, Select, Type, media transport, Siri, Call, Mute call, Night, Audio, Display, Refresh video, Focus mode, Fullscreen |
 
 Use **Guide** for connection steps and keyboard shortcuts. **Focus mode** hides the header and
 sidebar while keeping the CarPlay controls within reach.
+
+### Typing and paste
+
+Open a text field in CarPlay first, such as a Maps search. Then press **Type** and type in the box
+under the screen: Enter and Backspace reach CarPlay, and Esc closes the box. **Ctrl+V** anywhere in
+the viewer types the clipboard, up to 1,000 characters, at about 2 seconds per 100 characters.
+
+Text arrives simplified, because iOS keeps Shift and Option held after they are released:
+
+- Capitals become lowercase, though the phone may capitalize the start of a sentence itself.
+- Accents are removed, so `São Paulo` is typed as `sao paulo`.
+- Line breaks and tabs become spaces, so a pasted address can't submit itself halfway through.
+- Characters that need Shift, such as `@`, `!` and `?`, and emoji are not typed. The viewer lists
+  what it left out.
+
+This suits searching for places and addresses: `praca da se` finds Praça da Sé. It doesn't suit
+messages or anything where the exact text matters.
 
 ## Configuration
 
@@ -341,7 +361,7 @@ docs/       Logo and screenshots
 ## Development
 
 ```sh
-./gradlew build          # compiles both modules and runs the test suite (103 tests)
+./gradlew build          # compiles both modules and runs the test suite (112 tests)
 (cd web && npm run build)  # type-checks and bundles the browser client
 (cd web && npm test)       # checks keyboard isolation and touch mapping
 (cd linux/bt-bridge && cargo test)   # tests the Linux helper
@@ -361,6 +381,8 @@ persistence. Tested with H.264; HEVC passthrough is implemented but depends on y
 
 - Not an Apple-certified product; the public identity is shared and can be revoked by Apple.
 - Wired USB CarPlay is not supported; wireless only.
+- Typing and paste send plain keys only, so no capitals, accents or Shift symbols. They have only
+  been tested in Google Maps search.
 - Linux support uses `linux/bt-bridge` and BlueZ, and has only been tested on Omarchy/Arch. It has
   been validated there with an iPhone (iOS 27), with the host on Ethernet and the phone on a WPA2
   network: pairing, wireless bootstrap, MFi authentication, live H.264 video, touch input and

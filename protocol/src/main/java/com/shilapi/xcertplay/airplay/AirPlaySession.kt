@@ -200,6 +200,10 @@ class AirPlaySession(
         sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(0))
     }
 
+    /** Sends one keyboard report; [keyCode] 0 releases the key. */
+    fun sendKeyboard(keyCode: Int): Boolean =
+        sendHidReport(AirPlayHid.KEYBOARD_HID_UID, AirPlayHid.keyboardReport(keyCode))
+
     fun sendTelephony(index: Int) {
         sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(index))
         sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(0))
