@@ -8,7 +8,7 @@ A server-side CarPlay receiver that turns any screen on your network into a head
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)](#requirements)
 [![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#status-and-limitations)
-[![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-103%20passing-brightgreen.svg)](#development)
 
 </div>
 
@@ -130,7 +130,7 @@ mkdir -p identity/offline-mfi
 cp /path/to/identity.pk8 /path/to/certificate.p7b identity/offline-mfi/
 
 # 2. Build everything
-./gradlew build                      # protocol + server, runs 98 tests
+./gradlew build                      # protocol + server, runs 103 tests
 (cd web && npm install && npm run build)
 
 # 3. Build the Bluetooth bridge
@@ -334,7 +334,7 @@ docs/       Logo and screenshots
 ## Development
 
 ```sh
-./gradlew build          # compiles both modules and runs the test suite (98 tests)
+./gradlew build          # compiles both modules and runs the test suite (103 tests)
 (cd web && npm run build)  # type-checks and bundles the browser client
 (cd web && npm test)       # checks keyboard isolation and touch mapping
 (cd linux/bt-bridge && cargo test)   # tests the Linux helper
